@@ -15,7 +15,7 @@ Formally, we look to find an initial condition $\mathbf{x}_0$ that minimizes the
 
 ```math
 \begin{equation*}
-  J(\mathbf{x}_0) = \frac{1}{2} (\mathbf{x}_0 - \mathbf{x}_0^b)^T (P_0^b)^{-1}(\mathbf{x}_0 - \mathbf{x}_0^b) + \frac{1}{2} \sum_{k=0}^{K} (\mathscr{H}_k(\mathbf{x}_k) - \mathbf{y}_k)^T R_k^{-1}(\mathscr{H}_k(\mathbf{x}_k) - \mathbf{y}_k)
+  J(\mathbf{x}_0) = \frac{1}{2} (\mathbf{x}_0 - \mathbf{x}_0^b)^T (P_0^b)^{-1}(\mathbf{x}_0 - \mathbf{x}_0^b) + \frac{1}{2} {\Large\sum}_{k=0}^{K} (\mathscr{H}_k(\mathbf{x}_k) - \mathbf{y}_k)^T R_k^{-1}(\mathscr{H}_k(\mathbf{x}_k) - \mathbf{y}_k)
 \end{equation*}
 ```
 
@@ -50,7 +50,7 @@ where $M_{k+1}$ is the Jacobian matrix of $`\mathscr{M}_{k+1}`$, with partial de
 Taking the first variation of the cost functional gives
 
 ```math
-\delta J = (\mathbf{x} - \mathbf{x}_0^b)^T(P_0^B)^{-1}\delta \mathbf{x}_0 + \sum_{k=0}^K(\mathscr{H}_k(\mathbf{x}_k) - \mathbf{y}_k)^T R_k^{-1} H_k \delta x_k
+\delta J = (\mathbf{x} - \mathbf{x}_0^b)^T(P_0^B)^{-1}\delta \mathbf{x}_0 + {\Large\sum}_{k=0}^K(\mathscr{H}_k(\mathbf{x}_k) - \mathbf{y}_k)^T R_k^{-1} H_k \delta x_k
 ```
 
 where $H_k$ is the Jacobian of $\mathscr{H}_k$, the nonlinear observation model at timestep $k$.
@@ -68,7 +68,7 @@ Putting this all together, we are going to solve for the minimizer of this cost 
 Hence, we now look to minimize the augmented cost functional
 
 ```math
-\delta J = (\mathbf{x} - \mathbf{x}_0^b)^T(P_0^B)^{-1}\delta \mathbf{x}_0 + \sum_{k=0}^K(\mathscr{H}_k(\mathbf{x}_k) - \mathbf{y}_k)^T R_k^{-1} H_k \delta x_k - \sum_{k=0}^K \mathbf{p}_k^T (\delta \mathbf{x}_k - M_k \delta \mathbf{x}_{k-1})
+\delta J = (\mathbf{x} - \mathbf{x}_0^b)^T(P_0^B)^{-1}\delta \mathbf{x}_0 + {\Large\sum}_{k=0}^K(\mathscr{H}_k(\mathbf{x}_k) - \mathbf{y}_k)^T R_k^{-1} H_k \delta x_k - {\Large\sum}_{k=0}^K \mathbf{p}_k^T (\delta \mathbf{x}_k - M_k \delta \mathbf{x}_{k-1})
 ```
 
 Rearranging this equation, exploiting the symmetry of the covariance matrices, and regrouping in terms of each $\delta \mathbf{x}_k$, we have that
