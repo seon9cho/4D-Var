@@ -573,4 +573,135 @@ FINAL GRADIENT NORM: 0.049998070657670715
   <img src="graphics/modified/good_example_2.png">
 </div>
 
+### Climate Data Assimilation
+
+Lorenz-63 model is a simplified version of an atmospheric model used for weather forcast. In this context, each of the variables x, y, z represents a specific state of the atmosphere. For example, x can represent temperature, y can represent humidity, and z can represent pressure. Although the model is overly simplified and shouldn't really be used for weather forcast, we found some real world data that could be used for data assimilation using our model. The data was obtained from https://caas.usu.edu/weather/ and contains 4-year temperature, humidity, and barometric pressure data.
+
+The data is first transformed to match the expected values of the Lorenz-64 model output with the specified parameter values as before. The transformed data is then used to fit the model, and the resulting model output is inversely transformed to represent the values of the original observed data. This transformation can be viewed as our observation model $\mathscr{H}_k$. 
+
+```
+# Load data
+f = open("pressure.txt")
+pressure = np.array(literal_eval(f.read()))
+f.close()
+
+f = open("abs_humidity.txt")
+abs_humidity = np.array(literal_eval(f.read()))
+f.close()
+
+f = open("temperature.txt")
+temperature = np.array(literal_eval(f.read()))
+f.close()
+
+# There were some missing temperature data. 
+# The average value surrounding the data
+# was used to fill in the missing values.
+temperature[890:902, 1] = (temperature[889, 1] + temperature[902, 1]) / 2
+temperature[1029:1037, 1] = (temperature[1028, 1] + temperature[1037, 1]) / 2
+
+observed_data = np.zeros((3, temperature.shape[0]))
+observed_data[0] = temperature[:, 1]
+observed_data[1] = abs_humidity[:, 1]
+observed_data[2] = pressure[:, 1]
+t = np.linspace(0, 4, temperature.shape[0])
+# Plot this all on the same axis
+fig, axs = plt.subplots(3, figsize=(10,10))
+for i, (ax, label) in enumerate(zip(axs, ['Temperature (C)', 'Humidity (g m-3)', 'Pressure (kPa)'])):
+    ax.set_ylabel(label)
+    ax.set_xlabel('years')
+    ax.plot(t, observed_data[i,:], 'r.', ms=3, label='Observations')
+
+fig.suptitle("Climate Data")
+fig.tight_layout()
+fig.show()
+```
+
+<div align="center">
+  
+  <img src="graphics/modified/usu_data.png">
+</div>
+
+```
+def data_transform(x):
+    data = np.zeros((3, t.shape[0]))
+    data[0] = x[0]/4 + 5
+    data[1] = x[1] + 1
+    data[2] = 8*(x[2]-83)
+    return data
+
+def inv_transform(x):
+    x[0] = 4*(x[0] - 5)
+    x[1] = x[1] - 1
+    x[2] = x[2]/8 + 83
+    return x
+```
+
+```
+# Get actaul solution (to compare 4D-Var against)
+t_span = (0, 2.6)
+t = np.linspace(0, 2.6, observed_data.shape[1])  # 5 seconds with time steps of 0.05
+x0_true = np.ones(3)           # true/background initial condition
+sol = solve_ivp(lorenz, t_span, x0_true, t_eval=t)
+
+# Get observed data for the above actual solution (for assimilation)
+# NOTE: Observed data starts at timestep 1 (not 0), and only is
+# found at every other timestep of the solution sol.y
+# (aka, indexes 1, 3, 5, ..., or in other words, sliced by [1::2])
+
+transformed_data = data_transform(observed_data)
+
+# Get model covariance matrix (overestimate is good since we don't know
+# how much to trust the model)
+B = 2*np.eye(3)
+R_perturbed = np.eye(3) * 5
+# Get observation operators (full and linearized)
+H = lambda x: x
+H_linear = np.eye(3)
+
+# Get the analysis
+alpha_size = 0.01
+x0_b = np.array([5.1, 5.3, 22.8])
+analysis = analyze_4dvar_lorenz(t, x0_b, transformed_data, B, R_perturbed, H, H_linear,
+                                maxiter=50000, tol=5e-2,
+                                verbose=False, alpha=alpha_size)
+```
+
+```
+FINAL x0_a:  [ 5.71278877  3.11436604 25.03484356]
+FINAL GRADIENT NORM: 0.04999953611187953
+```
+
+```
+t_span_long = (0, 3.5)
+t_long = np.linspace(0, 3.5, 200)
+
+# Analyzed solution forecast
+x0_a = analysis[:,0]
+analyzed_forecast_sol = solve_ivp(lorenz, t_span_long, x0_a, t_eval=t_long)
+y = inv_transform(analyzed_forecast_sol.y)
+data_orig = np.zeros((3, temperature.shape[0]))
+data_orig[0] = temperature[:, 1]
+data_orig[1] = abs_humidity[:, 1]
+data_orig[2] = pressure[:, 1]
+# Plot this all on the same axis
+fig, axs = plt.subplots(3, figsize=(10,10))
+plt.setp(axs, xticks=np.arange(0, 10.5, 0.5), xticklabels=np.arange(0, 210, 10))
+for i, (ax, label) in enumerate(zip(axs, ['Temperature (C)', 'Humidity (g m-3)', 'Pressure (kPa)'])):
+    ax.set_ylabel(label)
+    ax.set_xlabel('Timestep')
+    ax.plot(t_long, y[i], '--', label='Analysis', lw=1)
+    ax.plot(t, data_orig[i,:], 'r.', ms=3, label='Observations')
+    ax.axvline(2.6, linestyle='--', color='k', lw=0.5)
+    ax.legend()
+
+fig.suptitle("4DVar Analysis of Lorenz-63 System fitted on Climate data")
+fig.tight_layout()
+fig.show()
+fig.savefig("graphics/usu_out.png")
+```
+
+<div align="center">
+  
+  <img src="graphics/modified/usu_out.png">
+</div>
 
