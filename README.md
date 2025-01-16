@@ -1,4 +1,4 @@
-Github Markdown does not support LaTeX very well!!! For a better compiled Markdown, refer to the [Jupyter Notebook file](4D_Var.ipynb).
+Github Markdown does not support LaTeX very well!!! For a better compiled version, refer to the [Jupyter Notebook file](4D_Var.ipynb).
 
 # 4D-Var
 
@@ -13,44 +13,53 @@ In other words, we look to find the appropriate initial condition $\mathbf{x}_0 
 
 Formally, we look to find an initial condition $\mathbf{x}_0$ that minimizes the cost functional
 
-$`
+```math
 \begin{equation*}
   J(\mathbf{x}_0) = \frac{1}{2} (\mathbf{x}_0 - \mathbf{x}_0^b)^T (P_0^b)^{-1}(\mathbf{x}_0 - \mathbf{x}_0^b) + \frac{1}{2} \sum_{k=0}^{K} (\mathscr{H}_k(\mathbf{x}_k) - \mathbf{y}_k)^T R_k^{-1}(\mathscr{H}_k(\mathbf{x}_k) - \mathbf{y}_k)
 \end{equation*}
-`$
+```
 
 subject to
 
-$`
+```math
 \begin{equation*}
   \mathbf{x}_{k+1} = \mathscr{M}_{k+1}(\mathbf{x}_k), \hspace{5pt} k = 0, 1, \ldots, K-1
 \end{equation*}
-`$
+```
 
 where $\mathscr{M}_k$ and $\mathscr{H}_k$ are the full, nonlinear model ODE and observation operators, $P_0^b$ is the (known) covariance of the background guess for the initial state, and $R_k$ is the (known) covariance of the observation operator.
 
 To minimize this cost functional, we take the gradient of $J$ with respect to the initial condition, $\mathbf{x}_0$.
 
 Note that, given a perturbation $\delta \mathbf{x}_0$ of the initial condition, the first variation is going to have the form
-$` \delta J = \left(\nabla_{\mathbf{x}_0} J\right)^T\delta \mathbf{x}_0 `$
+
+```math 
+\delta J = \left(\nabla_{\mathbf{x}_0} J\right)^T\delta \mathbf{x}_0
+```
 
 Note that we can linearize our model about this perturbation to get a Tangent Linear Model (TLM). This will simplify our analysis by ignoring higher-order behavior of the perturbations, which is often unneccessary to get good results.
 
 The perturbation of the initial condition is propogated through our model using the tangent linear equation
 
-$`\delta \mathbf{x}_{k+1} = M_{k+1} \delta \mathbf{x}_k`$
+```math
+\delta \mathbf{x}_{k+1} = M_{k+1} \delta \mathbf{x}_k
+```
 
 where $M_{k+1}$ is the Jacobian matrix of $`\mathscr{M}_{k+1}`$, with partial derivatives of $`\mathbf{x}_{k+1}`$ with respect to $`\mathbf{x}_k`$.
 
 Taking the first variation of the cost functional gives
 
-$`\delta J = (\mathbf{x} - \mathbf{x}_0^b)^T(P_0^B)^{-1}\delta \mathbf{x}_0 + \sum_{k=0}^K(\mathscr{H}_k(\mathbf{x}_k) - \mathbf{y}_k)^T R_k^{-1} H_k \delta x_k`$
+```math
+\delta J = (\mathbf{x} - \mathbf{x}_0^b)^T(P_0^B)^{-1}\delta \mathbf{x}_0 + \sum_{k=0}^K(\mathscr{H}_k(\mathbf{x}_k) - \mathbf{y}_k)^T R_k^{-1} H_k \delta x_k
+```
 
 where $H_k$ is the Jacobian of $\mathscr{H}_k$, the nonlinear observation model at timestep $k$.
 
 Note that we want to explicitly determine the perturbation of the cost functional with respect to the perturbation of the *initial condition*, and that $\delta \mathbf{x}_k$ depends on the perturbation of the intial condition by the relationship
 
-$`\delta \mathbf{x}_{k+1} = M_{k+1}M_{k}\ldots M_{1}M_{0} \delta \mathbf{x}_0`$
+```math
+\delta \mathbf{x}_{k+1} = M_{k+1}M_{k}\ldots M_{1}M_{0} \delta \mathbf{x}_0
+```
 
 Also note that, if we do not have an observation at every timestep that we increment our state, then the linearizations used in the cost functional must be propogated through time appropriately (as in the equation above, multiplying the correct number of Jacobian matrices at each timestep that we have incremented our state vector and not recieved an observation).
 
@@ -58,17 +67,19 @@ Putting this all together, we are going to solve for the minimizer of this cost 
 
 Hence, we now look to minimize the augmented cost functional
 
-$`\delta J = (\mathbf{x} - \mathbf{x}_0^b)^T(P_0^B)^{-1}\delta \mathbf{x}_0 + \sum_{k=0}^K(\mathscr{H}_k(\mathbf{x}_k) - \mathbf{y}_k)^T R_k^{-1} H_k \delta x_k - \sum_{k=0}^K \mathbf{p}_k^T (\delta \mathbf{x}_k - M_k \delta \mathbf{x}_{k-1})`$
+```math
+\delta J = (\mathbf{x} - \mathbf{x}_0^b)^T(P_0^B)^{-1}\delta \mathbf{x}_0 + \sum_{k=0}^K(\mathscr{H}_k(\mathbf{x}_k) - \mathbf{y}_k)^T R_k^{-1} H_k \delta x_k - \sum_{k=0}^K \mathbf{p}_k^T (\delta \mathbf{x}_k - M_k \delta \mathbf{x}_{k-1})
+```
 
 Rearranging this equation, exploiting the symmetry of the covariance matrices, and regrouping in terms of each $\delta \mathbf{x}_k$, we have that
 
-$`
+```math
 \begin{split}
   \delta J = {}& \left[(P_0^B)^{-1}(\mathbf{x}_0 - \mathbf{x}_0^b) + H_0^T R_0^{-1}(\mathscr{H}_0(\mathbf{x}_0) - \mathbf{y}_0) + M_0^T \mathbf{p}_1 \right]\delta \mathbf{x}_0 \\
   &+ \left[{\Large\sum}_{k=1}^{K-1}H_k^T R_k^{-1}(\mathscr{H}_k(\mathbf{x}_k) - \mathbf{y}_k) - \mathbf{p}_k + M_k^T \mathbf{p}_{k+1}\right] \delta \mathbf{x}_k \\
   &+ \left[H_K^T R_k^{-1} (\mathscr{H}_K(\mathbf{x}_K) - \mathbf{y}_K) - \mathbf{p}_K\right]\delta \mathbf{x}_K
 \end{split}
-`$
+```
 
 which is valid for any choice of the adjoint states $\mathbf{p}_k$.
 
@@ -76,17 +87,19 @@ So we are going to choose these states such that the only term that survives is 
 
 This means simply that
 
-$`
+```math
 \begin{align*}
   \mathbf{p}_K &= H_K^T \mathbf{R}_k^{-1} (\mathscr{H}_K(\mathbf{x}_k) - \mathbf{y}_k) \\
   \mathbf{p}_k &= H_k^T R_k^{-1}(\mathscr{H}_k(\mathbf{x}_k) - \mathbf{y}_k) + M_k^T \mathbf{p}_{k+1}, \hspace{20pt}k = K-1, K-2, \ldots, 1 \\
   \mathbf{p}_0 &= (P_0^B)^{-1}(\mathbf{x}_0 - \mathbf{x}_0^b) + H_0^T R_0^{-1}(\mathscr{H}_0(\mathbf{x}_0) - \mathbf{y}_0) + M_0^T \mathbf{p}_1
 \end{align*}
-`$
+```
 
 where we have found then that
 
-$`\delta J = \mathbf{p}_0^T \delta \mathbf{x}_0`$
+```math
+\delta J = \mathbf{p}_0^T \delta \mathbf{x}_0
+```
 
 as desired.
 
@@ -95,19 +108,28 @@ So $\mathbf{p}_0$ is the desired gradient that we will use in an iterative gradi
 Note that $\mathbf{p}_0$ depends on all of the other $\mathbf{p}_k$ in an iterative way backwards from $\mathbf{p}_K$.
 
 We define the weighted innovation vector as
-$$d_k = H_k^T R_k^{-1}(\mathscr{H}_k(\mathbf{x}_k) - \mathbf{y}_k) $$
+
+```math
+d_k = H_k^T R_k^{-1}(\mathscr{H}_k(\mathbf{x}_k) - \mathbf{y}_k)
+```
 
 Using this notation, we can rewrite this gradient in terms of a gradient on the initial state/background and initial observation ($\delta J^b$), and a gradient on the remaining observations ($\delta J^o$) by fixing
 
-$`\delta J = \delta J^b + \delta J^o`$
+```math
+\delta J = \delta J^b + \delta J^o
+```
 
 where
 
-$`\delta J^b = (P_0^B)^{-1}(\mathbf{x}_0 - \mathbf{x}_0^b)`$
+```math
+\delta J^b = (P_0^B)^{-1}(\mathbf{x}_0 - \mathbf{x}_0^b)
+```
 
 and
 
-$`\delta J^o = d_0 + M_0^T(d_1 + M_1^T(d_2 + M_2^T(\ldots M_{K-1}^T(d_K)))) `$
+```math
+\delta J^o = d_0 + M_0^T(d_1 + M_1^T(d_2 + M_2^T(\ldots M_{K-1}^T(d_K))))
+```
 
 Hence, the algorithm for 4D-Var amounts to iterating through the following steps:
 
@@ -127,23 +149,27 @@ Hence, the algorithm for 4D-Var amounts to iterating through the following steps
 
 <br>
 
-#### Introduction to the Physical Model
+### Introduction to the Physical Model
 
 We are trying to assimilate data into the Lorenz-63 Model, which is a toy model from meterorology. The model is a first-order ODE system of the form
 
 We wish to assimilate the Lorenz-63 equations by standard 4D-Var, where the Lorenz-63 equations are given by
 
+```math
 \begin{align*}
     \frac{dx}{dt} &= -\sigma(x-y) \\
     \frac{dy}{dt} &= \rho x - y - xz \\
     \frac{dz}{dt} &= xy - \beta z
 \end{align*}
+```
 
 where $\sigma = 10 $, $\rho = 28$, and $\beta = 8/3$.
 
 This system is known to be chaotic, which makes it a good candidate for testing how well our 4D-Var algorithm performs on a set of data.
 
-#### Data Source for Experimentation
+<br>
+
+### Data Source for Experimentation
 
 Since this is a toy model, it is difficult to assimilate real-life datasets with this model. So we will use what the book calls a "twin experiment" or "synthetic run" to evaluate the performance of our algorithm.
 
@@ -155,26 +181,32 @@ In other words, the following process will be used to generate the observation d
 
 This process will give us a set of "true" solutions at each time gridpoint, and then a set of "observations" at a selection of these gridpoints.
 
-\\
+<br>
 
-#### Application to the Lorenz-63 system
+### Application to the Lorenz-63 system
 
 We have that the Tangent Linear Model/Jacobian for the Lorenz-63 system for going from state timestep $k$ to state timestep $k+1$ (assuming that the length of time between these timesteps is the constant $\Delta t$) is given by
 
-$$ M_{k:k+1} = \begin{pmatrix}
+```math
+ M_{k:k+1} = \begin{pmatrix}
 1 - \sigma \Delta t & \sigma \Delta t & 0 \\
 (\rho - z_k) \Delta t & 1 - \Delta t & -x_k \Delta t \\
 y_k \Delta t & x_k \Delta t & 1 - \beta \Delta t
-\end{pmatrix} $$
+\end{pmatrix}
+```
 
 Our data assimilation method only has observed data at every other timestep where we run our model. So we actually need to multiply two of these matrices together to get the $M_k$ values used in the cost functional.
 
 Also, by the data generation algorithm given above, we have that the observation operator is given by
+
 $$\mathscr{H}_k(x_k,y_k,z_k) = (x_k,y_k,z_k)$$
+
 which is just the identity opertaor, and thus,
+
 $$H_k = \begin{pmatrix}
 1 & 0 & 0 \\
 0 & 1 & 0 \\
 0 & 0 & 1
 \end{pmatrix}$$
+
 is the desired Jacobian used in our algorithm.
