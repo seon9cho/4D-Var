@@ -210,3 +210,54 @@ $$H_k = \begin{pmatrix}
 \end{pmatrix}$$
 
 is the desired Jacobian used in our algorithm.
+
+```
+# Imports
+import numpy as np
+from matplotlib import pyplot as plt
+from scipy.integrate import solve_ivp
+from functools import reduce
+from ast import literal_eval
+```
+
+```
+# Parameters of Lorenz-63 system
+sigma = 10
+rho = 28
+beta = 8/3
+
+# The Lorenz-63 system
+def lorenz(t, x):
+    """ The Lorenz-63 System
+        x: ndarray(3,)
+     """
+    return np.array([-sigma*(x[0] - x[1]),
+                    rho*x[0] - x[1] - x[0]*x[2],
+                    x[0]*x[1] - beta*x[2] ])
+
+# Solve Lorenz for actual solution
+t_span = (0, 50)
+t = np.linspace(0, 50, 10000)
+x0 = np.ones(3)
+example_sol = solve_ivp(lorenz, t_span, x0, t_eval=t)
+
+
+# Plot the example solution
+fig = plt.figure(figsize=(7,7))
+ax = fig.add_subplot(projection='3d')
+ax.plot(example_sol.y[0,:], example_sol.y[1,:], example_sol.y[2,:], color='k', linewidth=1, label='Actual Solution')
+ax.plot(np.sqrt(beta*(rho - 1)), np.sqrt(beta*(rho - 1)), rho-1, 'o', markersize=3, color='r')
+ax.plot(-np.sqrt(beta*(rho - 1)), -np.sqrt(beta*(rho - 1)), rho-1, 'o', markersize=3, color='r')
+ax.set_xlabel('X')
+ax.set_ylabel('Y')
+ax.set_zlabel('Z')
+ax.set_box_aspect(aspect=(1,1,1.1), zoom=0.95)
+ax.view_init(10, -50, 0)
+ax.set_title("Lorenz Attractor")
+ax.legend()
+plt.show()
+fig.savefig("graphics/lorenz_graph.png")
+```
+
+<img src="graphics/lorenz_graph.png">
+
