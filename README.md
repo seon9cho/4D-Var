@@ -1,6 +1,6 @@
-# 4D-Var
-
 Github Markdown does not support LaTeX very well!!! For a better compiled Markdown, refer to the [Jupyter Notebook file](4D_Var.ipynb).
+
+# 4D-Var
 
 ## Derivation of Strong-Constraint 4D-Var Algorithm for Lorenz-63 model
 
@@ -13,19 +13,19 @@ In other words, we look to find the appropriate initial condition $\mathbf{x}_0 
 
 Formally, we look to find an initial condition $\mathbf{x}_0$ that minimizes the cost functional
 
-```math
+$`
 \begin{equation*}
   J(\mathbf{x}_0) = \frac{1}{2} (\mathbf{x}_0 - \mathbf{x}_0^b)^T (P_0^b)^{-1}(\mathbf{x}_0 - \mathbf{x}_0^b) + \frac{1}{2} \sum_{k=0}^{K} (\mathscr{H}_k(\mathbf{x}_k) - \mathbf{y}_k)^T R_k^{-1}(\mathscr{H}_k(\mathbf{x}_k) - \mathbf{y}_k)
 \end{equation*}
-```
+`$
 
 subject to
 
-```math
+$`
 \begin{equation*}
   \mathbf{x}_{k+1} = \mathscr{M}_{k+1}(\mathbf{x}_k), \hspace{5pt} k = 0, 1, \ldots, K-1
 \end{equation*}
-```
+`$
 
 where $\mathscr{M}_k$ and $\mathscr{H}_k$ are the full, nonlinear model ODE and observation operators, $P_0^b$ is the (known) covariance of the background guess for the initial state, and $R_k$ is the (known) covariance of the observation operator.
 
@@ -43,37 +43,51 @@ $`\delta \mathbf{x}_{k+1} = M_{k+1} \delta \mathbf{x}_k`$
 where $M_{k+1}$ is the Jacobian matrix of $`\mathscr{M}_{k+1}`$, with partial derivatives of $`\mathbf{x}_{k+1}`$ with respect to $`\mathbf{x}_k`$.
 
 Taking the first variation of the cost functional gives
-$$\delta J = (\mathbf{x} - \mathbf{x}_0^b)^T(P_0^B)^{-1}\delta \mathbf{x}_0 + \sum_{k=0}^K(\mathscr{H}_k(\mathbf{x}_k) - \mathbf{y}_k)^T R_k^{-1} H_k \delta x_k$$
+
+$`\delta J = (\mathbf{x} - \mathbf{x}_0^b)^T(P_0^B)^{-1}\delta \mathbf{x}_0 + \sum_{k=0}^K(\mathscr{H}_k(\mathbf{x}_k) - \mathbf{y}_k)^T R_k^{-1} H_k \delta x_k`$
+
 where $H_k$ is the Jacobian of $\mathscr{H}_k$, the nonlinear observation model at timestep $k$.
 
 Note that we want to explicitly determine the perturbation of the cost functional with respect to the perturbation of the *initial condition*, and that $\delta \mathbf{x}_k$ depends on the perturbation of the intial condition by the relationship
-$$\delta \mathbf{x}_{k+1} = M_{k+1}M_{k}\ldots M_{1}M_{0} \delta \mathbf{x}_0$$
+
+$`\delta \mathbf{x}_{k+1} = M_{k+1}M_{k}\ldots M_{1}M_{0} \delta \mathbf{x}_0`$
 
 Also note that, if we do not have an observation at every timestep that we increment our state, then the linearizations used in the cost functional must be propogated through time appropriately (as in the equation above, multiplying the correct number of Jacobian matrices at each timestep that we have incremented our state vector and not recieved an observation).
 
-Putting this all together, we are going to solve for the minimizer of this cost functional by introducing adjoint state vectors $\mathbf{p}_k$ at each observation timestep $k = 0, 1, \ldots, K$. Since, by our Tangent Linear Model equation, $\delta \mathbf{x}_k = M_k \delta \mathbf{x}_{k-1} $, we have that $\mathbf{p}_k^T (\delta \mathbf{x}_k - M_k \delta \mathbf{x}_{k-1}) =0 $, so adding terms like this to the cost functional does not change its value.
+Putting this all together, we are going to solve for the minimizer of this cost functional by introducing adjoint state vectors $\mathbf{p}_k$ at each observation timestep $k = 0, 1, \ldots, K$. Since, by our Tangent Linear Model equation, $`\delta \mathbf{x}_k = M_k \delta \mathbf{x}_{k-1}`$, we have that $`\mathbf{p}_k^T (\delta \mathbf{x}_k - M_k \delta \mathbf{x}_{k-1}) =0`$, so adding terms like this to the cost functional does not change its value.
 
 Hence, we now look to minimize the augmented cost functional
-$$\delta J = (\mathbf{x} - \mathbf{x}_0^b)^T(P_0^B)^{-1}\delta \mathbf{x}_0 + \sum_{k=0}^K(\mathscr{H}_k(\mathbf{x}_k) - \mathbf{y}_k)^T R_k^{-1} H_k \delta x_k - \sum_{k=0}^K \mathbf{p}_k^T (\delta \mathbf{x}_k - M_k \delta \mathbf{x}_{k-1})$$
 
-Rearranging this equation, exploiting the symmetry of the covariance matrices, and regrouping in terms of each $\delta \mathbf{x}_k$,we have that
-$$\begin{split}\delta J = {}& \left[(P_0^B)^{-1}(\mathbf{x}_0 - \mathbf{x}_0^b) + H_0^T R_0^{-1}(\mathscr{H}_0(\mathbf{x}_0) - \mathbf{y}_0) + M_0^T \mathbf{p}_1 \right]\delta \mathbf{x}_0 \\
-&+ \left[\sum_{k=1}^{K-1}H_k^T R_k^{-1}(\mathscr{H}_k(\mathbf{x}_k) - \mathbf{y}_k) - \mathbf{p}_k + M_k^T \mathbf{p}_{k+1}\right] \delta \mathbf{x}_k \\
-&+ \left[H_K^T R_k^{-1} (\mathscr{H}_K(\mathbf{x}_K) - \mathbf{y}_K) - \mathbf{p}_K\right]\delta \mathbf{x}_K
-\end{split}$$
+$`\delta J = (\mathbf{x} - \mathbf{x}_0^b)^T(P_0^B)^{-1}\delta \mathbf{x}_0 + \sum_{k=0}^K(\mathscr{H}_k(\mathbf{x}_k) - \mathbf{y}_k)^T R_k^{-1} H_k \delta x_k - \sum_{k=0}^K \mathbf{p}_k^T (\delta \mathbf{x}_k - M_k \delta \mathbf{x}_{k-1})`$
+
+Rearranging this equation, exploiting the symmetry of the covariance matrices, and regrouping in terms of each $\delta \mathbf{x}_k$, we have that
+
+$`
+\begin{split}
+  \delta J = {}& \left[(P_0^B)^{-1}(\mathbf{x}_0 - \mathbf{x}_0^b) + H_0^T R_0^{-1}(\mathscr{H}_0(\mathbf{x}_0) - \mathbf{y}_0) + M_0^T \mathbf{p}_1 \right]\delta \mathbf{x}_0 \\
+  &+ \left[{\Large\sum}_{k=1}^{K-1}H_k^T R_k^{-1}(\mathscr{H}_k(\mathbf{x}_k) - \mathbf{y}_k) - \mathbf{p}_k + M_k^T \mathbf{p}_{k+1}\right] \delta \mathbf{x}_k \\
+  &+ \left[H_K^T R_k^{-1} (\mathscr{H}_K(\mathbf{x}_K) - \mathbf{y}_K) - \mathbf{p}_K\right]\delta \mathbf{x}_K
+\end{split}
+`$
+
 which is valid for any choice of the adjoint states $\mathbf{p}_k$.
 
 So we are going to choose these states such that the only term that survives is $\delta \mathbf{x}_0$.
 
 This means simply that
 
+$`
 \begin{align*}
   \mathbf{p}_K &= H_K^T \mathbf{R}_k^{-1} (\mathscr{H}_K(\mathbf{x}_k) - \mathbf{y}_k) \\
   \mathbf{p}_k &= H_k^T R_k^{-1}(\mathscr{H}_k(\mathbf{x}_k) - \mathbf{y}_k) + M_k^T \mathbf{p}_{k+1}, \hspace{20pt}k = K-1, K-2, \ldots, 1 \\
   \mathbf{p}_0 &= (P_0^B)^{-1}(\mathbf{x}_0 - \mathbf{x}_0^b) + H_0^T R_0^{-1}(\mathscr{H}_0(\mathbf{x}_0) - \mathbf{y}_0) + M_0^T \mathbf{p}_1
 \end{align*}
-Where we have found then that
-$$\delta J = \mathbf{p}_0^T \delta \mathbf{x}_0$$
+`$
+
+where we have found then that
+
+$`\delta J = \mathbf{p}_0^T \delta \mathbf{x}_0`$
+
 as desired.
 
 So $\mathbf{p}_0$ is the desired gradient that we will use in an iterative gradient descent algorithm.
@@ -84,13 +98,18 @@ We define the weighted innovation vector as
 $$d_k = H_k^T R_k^{-1}(\mathscr{H}_k(\mathbf{x}_k) - \mathbf{y}_k) $$
 
 Using this notation, we can rewrite this gradient in terms of a gradient on the initial state/background and initial observation ($\delta J^b$), and a gradient on the remaining observations ($\delta J^o$) by fixing
-$$\delta J = \delta J^b + \delta J^o$$
-where
-$$\delta J^b = (P_0^B)^{-1}(\mathbf{x}_0 - \mathbf{x}_0^b)$$
-and
-$$\delta J^o = d_0 + M_0^T(d_1 + M_1^T(d_2 + M_2^T(\ldots M_{K-1}^T(d_K)))) $$
 
-Hence, the algorithm for 4D-Var amounts to iteratively doing the following:
+$`\delta J = \delta J^b + \delta J^o`$
+
+where
+
+$`\delta J^b = (P_0^B)^{-1}(\mathbf{x}_0 - \mathbf{x}_0^b)`$
+
+and
+
+$`\delta J^o = d_0 + M_0^T(d_1 + M_1^T(d_2 + M_2^T(\ldots M_{K-1}^T(d_K)))) `$
+
+Hence, the algorithm for 4D-Var amounts to iterating through the following steps:
 
 1. Given a guess for the initial condition, integrate the solution to the ODE forward in time using an ODE solver (like `solve_ivp` provided in scipy) over a given set of time gridpoints. This gives us our $\mathbf{x}_k$.
 
@@ -106,7 +125,7 @@ Hence, the algorithm for 4D-Var amounts to iteratively doing the following:
 
 6. Repeat steps 1-5 with this new initial condition. Repeat until some sort of convergence is achieved.
 
-\\
+<br>
 
 #### Introduction to the Physical Model
 
