@@ -259,5 +259,9 @@ plt.show()
 fig.savefig("graphics/lorenz_graph.png")
 ```
 
-<img src="graphics/lorenz_graph.png">
+<div align="center">
+  
+  <img src="graphics/modified/lorenz_graph.png" width=600>
+</div>
+
 
