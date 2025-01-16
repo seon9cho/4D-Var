@@ -264,4 +264,313 @@ fig.savefig("graphics/lorenz_graph.png")
   <img src="graphics/modified/lorenz_graph.png" width=600>
 </div>
 
+```
+# Generate toy data for assimilation
+def get_observed_data(actual_data, covar):
+    """Get observed datapoints given actual datapoints and
+    an amount of noise/covariance.
+
+    Parameters:
+        actual_data ((n,t) ndarray) - Actual datapoints at
+          each timestep
+        covar ((n,n) ndarray) - The covariance to use for
+          noise of observations
+
+    Returns:
+        observed_data ((n,t) ndarray) - Perturbed datapoints
+          at each timestep
+        data_slice (Index Slice) - The slice of indexes we kept
+    """
+    n, t = actual_data.shape
+    mu = np.zeros(n)
+    perturbations = np.random.multivariate_normal(mu, covar, t).T
+    all_observations = actual_data + perturbations
+    return np.delete(all_observations, np.s_[1::2], axis=1), np.s_[::2] # we only want observations at every 2 time steps
+
+
+def get_Li(state: np.ndarray,
+             dt: float) -> np.ndarray:
+    """Gets the TLM of the Lorenz equations.
+
+    Parameters:
+        state ((3,) ndarray): The model-integrated/forecast state
+            at the current timestep.
+        dt (float): The size of the timestep in our evaluation.
+
+    Returns:
+        L
+         ((3,3) ndarray): The TLM for the Lorenz model.
+    """
+    x,y,z = state
+    L = np.array([
+        [1 - sigma * dt, sigma * dt, 0],
+        [(rho - z) * dt, 1 - dt, -x * dt],
+        [dt * y, dt * x, 1 - beta * dt]
+    ])  # TLM derived from perturbing ODE and ignoring higher order terms
+
+    return L
+
+
+def get_di(state: np.ndarray,
+           obs: np.ndarray,
+           H: callable,
+           H_linear: np.ndarray,
+           R_inv: np.ndarray,) -> np.ndarray:
+    """Get the weighted innovation vector at a specific timestep.
+
+    Currently not vectorized, could be improved by vectorizing over
+    entire time interval.
+
+    Parameters:
+        state ((n,) ndarray): The (forecast) state (resulting from
+            a forward integration of the nonlinear model)
+        obs ((m,) ndarray): The observations at each timestep.
+        H (callable): The (potentially nonlinear) observation operator,
+            vectorized to handle an entire vector of observations.
+        H_linear ((n,m) ndarray): The linearized version of the observation
+            operator (partial H/partial x_i).
+        R_inv ((m,m) ndarray): The inverse of the background covariance
+            matrix.
+
+    Returns:
+        d_i (np.ndarray): The weighted innovation vectors at each
+            timestep.
+    """
+    unweighted_innovation = H(state) - obs
+    return -H_linear.T @ R_inv @ unweighted_innovation
+
+# Get actaul solution (to compare 4D-Var against)
+t_span = (0, 5)
+t = np.linspace(0, 5, 100)  # 5 seconds with time steps of 0.05
+x0_true = np.ones(3)           # true/background initial condition
+sol = solve_ivp(lorenz, t_span, x0_true, t_eval=t)
+
+# Get observed data for the above actual solution (for assimilation)
+# NOTE: Observed data starts at timestep 1 (not 0), and only is
+# found at every other timestep of the solution sol.y
+# (aka, indexes 1, 3, 5, ..., or in other words, sliced by [1::2])
+R = np.array([
+    [3,2,1],
+    [2,2,2],
+    [1,2,4]
+])
+observed_data, data_slice = get_observed_data(sol.y, R)
+
+# Plot this all on the same axis
+fig, axs = plt.subplots(3, figsize=(10,10))
+plt.setp(axs, xticks=np.arange(0, 10.5, 0.5), xticklabels=np.arange(0, 210, 10))
+for i, (ax, label) in enumerate(zip(axs, ['x', 'y', 'z'])):
+    ax.set_ylabel(label)
+    ax.set_xlabel('Timestep')
+    ax.plot(t[data_slice], observed_data[i,:], 'r.', ms=3, label='Observations')
+
+fig.suptitle("Synthetic Data")
+fig.tight_layout()
+plt.savefig("graphics/synth_data.png")
+fig.show()
+```
+
+<div align="center">
+  
+  <img src="graphics/modified/synth_data.png">
+</div>
+
+```
+# Code up one iteration of inner loop to try this out
+def analyze_4dvar_lorenz(
+    t: np.ndarray,
+    x0_b: np.ndarray,
+    data: np.ndarray,
+    B: np.ndarray,
+    R: np.ndarray,
+    H: callable,
+    H_linear: np.ndarray,
+    tol: float=1e-6,
+    maxiter: int=100,
+    data_slice: np.lib.index_tricks.IndexExpression=np.s_[:],
+    verbose: bool=False,
+    alpha: float = 0.01
+    )-> np.ndarray:
+    """Get the analyzed solution to a Lorenz-63 DA problem using 4D-Var.
+
+    Parameters:
+        t ((t,) ndarray): The timesteps to evaluate the solution at.
+        x0_b ((3,) ndarray): The background for the initial condition.
+        data ((m,t*) ndarray): The data for assimilation with the Lorenz-63
+            model (must have at least 2 observations)
+        B ((3,3) ndarray): The covariance matrix for the background
+            initial condition.
+        R ((m,m) ndarray): The covariance matrix for the observations.
+        H (callable): The (potentially nonlinear) observation operator,
+            transforming states to observations.
+        H_linear ((3,m) ndarray): The linearized observation operator
+            (must be the same at each timestep for this function)
+        data_slice (IndexExpression): If provided, the slices for the timesteps
+            at which data are provided (if not provided, assumed to be at
+            all timesteps)
+        verbose (boolean): Whether or not to print out status reports during
+            runtime (default is False)
+        alpha (float): The gradient descent step length parameter (default
+            is 0.01)
+
+    Returns:
+        analysis ((t,3) ndarray): The analyzed state after using 4DVar.
+    """
+    # Setup inverse matrices and other needed parameters
+    B_inv = np.linalg.inv(B)
+    R_inv = np.linalg.inv(R)
+    t_span = (np.min(t), np.max(t))   # Min and max time on interval
+    dt = t[1] - t[0]                  # Size of timestep
+
+    # Set up cost function
+    J = lambda x: 0.5 * (x[0] - x0_b).T @ B_inv @ (x[0] - x0_b) \
+                  + 0.5 * np.sum([(H(x) - y).T @ R_inv @ (H(x) - y)
+                  for x,y in zip(x[data_slice], data.T)])
+
+    # Get indexes of timesteps we have data at
+    data_times = np.arange(len(t))[data_slice]
+    padded_data_times = list(data_times)         # Used for calculating adjoint
+    if min(data_times) != 0:
+        padded_data_times.insert(0, 0)
+    if max(data_times) != len(t) - 1:
+        padded_data_times.append(len(t) - 1)
+
+    # --------------- 4D-Var Loop ------------------
+    norm_grad_J = np.inf
+    best_J = np.inf
+    numiter = 0
+    x0_a = x0_b.copy()     # Analyzed initial condition (start at background)
+    success = False
+    while norm_grad_J > tol and numiter < maxiter:
+        if verbose and numiter%500==0:
+            print(f"ITERATION:  {numiter}")
+
+        ## Step 1: Run full nonlinear model to get forecast state
+        ## (AKA forward integration)
+        sol = solve_ivp(lorenz, t_span, x0_a, t_eval=t)
+        state_a = sol.y    # Shape is (3,t)
+
+        ## Step 2: Get adjoint/innovation information using this state
+        # Get (non-transposed) TLM using the current states and timesteps
+        Li_raw = []
+        for state in state_a.T:
+            Li_raw.append(get_Li(state, dt))
+
+        # Combine (transposed) adjoints at correct timesteps
+        # to align correctly with states
+        adjoints = [
+            (reduce(np.dot, Li_raw[start:end])).T
+            for start,end
+            in zip(padded_data_times[:-1], padded_data_times[1:])
+            ]
+
+        # Get weighted innovations
+        innovations = []
+        for state, obs in zip(state_a.T[data_slice], data.T):
+            innovations.append(get_di(state, obs, H, H_linear, R_inv))
+
+        ## Step 3: Work "backwards in time" to get gradient of J_o
+        grad_J_o = innovations[-1]
+        for adjoint, innovation in zip(adjoints[::-1], innovations[:-1:-1]):
+            grad_J_o = innovation + adjoint @ grad_J_o
+
+        ## Step 4: Get full gradient
+        grad_J_b = B_inv @ (x0_a - x0_b)
+        grad_J = grad_J_b + grad_J_o
+        norm_grad_J = np.linalg.norm(grad_J, ord=2)
+        if verbose and numiter%500 == 0:
+            print(f"  GRADIENT:  {grad_J}")
+            print(f"  L2-NORM OF GRADIENT:  {norm_grad_J}")
+
+        ## Step 5: If we have converged, break.
+        ## Otherwise, run full gradient descet algorithm
+        # Check for convergence (gradient being "small enough")
+        if norm_grad_J < tol:
+            success = True
+            break
+
+        # Gradient descent that works (fixed rate)
+        alpha_used = alpha
+        if norm_grad_J < 1:   # Smaller step size for smaller gradient
+            alpha_used *= 0.1
+        if norm_grad_J < 0.1:
+            alpha_used *= 0.05
+        x0_a -= alpha_used * grad_J
+        if verbose and numiter%500 == 0:
+            print(f"  NEW x0_a:  {x0_a}")
+
+        # Set up for next iteration
+        numiter += 1
+
+
+    # End of algorithm. Check for successful convergence
+    if not success:
+        print(f"WARNING: Algorithm did not converge in {maxiter} iterations")
+
+    # Get analyzed state by integrating with new, analyzed initial condition,
+    # and return it
+    print(f"FINAL x0_a:  {x0_a}")
+    print(f"FINAL GRADIENT NORM: {norm_grad_J}")
+    sol = solve_ivp(lorenz, t_span, x0_a, t_eval=t)
+    state_a = sol.y    # Shape is (3,t)
+    return state_a
+```
+
+```
+
+# Get model covariance matrix (overestimate is good since we don't know
+# how much to trust the model)
+B = np.eye(3)
+R_perturbed = np.eye(3) * 5
+# Get observation operators (full and linearized)
+H = lambda x: x
+H_linear = np.eye(3)
+
+# Get the analysis
+alpha_size = 0.01
+x0_b = np.array([0.7, 1.2, 0.9])
+analysis = analyze_4dvar_lorenz(t, x0_b, observed_data, B, R_perturbed, H, H_linear,
+                                data_slice=data_slice, maxiter=20000, tol=5e-2,
+                                verbose=False, alpha=alpha_size)
+
+# Forecast both actual and anlyzed solutions to double the time
+t_span_long = (0, 10)
+t_long = np.linspace(0, 10, 200)
+
+# Actual solution
+x0_b = np.ones(3)           # true/background initial condition
+actual_sol = solve_ivp(lorenz, t_span_long, x0_b, t_eval=t_long)
+
+# Analyzed solution forecast
+x0_a = analysis[:,0]
+analyzed_forecast_sol = solve_ivp(lorenz, t_span_long, x0_a, t_eval=t_long)
+
+# Plot this all on the same axis
+fig, axs = plt.subplots(3, figsize=(10,10))
+plt.setp(axs, xticks=np.arange(0, 10.5, 0.5), xticklabels=np.arange(0, 210, 10))
+for i, (ax, label) in enumerate(zip(axs, ['x', 'y', 'z'])):
+    ax.set_ylabel(label)
+    ax.set_xlabel('Timestep')
+    ax.plot(t_long, actual_sol.y[i,:], label='Truth', lw=1)
+    ax.plot(t_long, analyzed_forecast_sol.y[i,:], '--', label='Analysis', lw=1)
+    ax.plot(t[data_slice], observed_data[i,:], 'r.', ms=3, label='Observations')
+    ax.axvline(5, linestyle='--', color='k', lw=0.5)
+    ax.legend()
+
+fig.suptitle("4DVar Analysis of Lorenz-63 System")
+fig.tight_layout()
+plt.savefig("graphics/good_example_2.png")
+fig.show()
+```
+
+```
+FINAL x0_a:  [0.32023749 0.89645914 0.75543922]
+FINAL GRADIENT NORM: 0.049998070657670715
+```
+
+<div align="center">
+  
+  <img src="graphics/modified/good_example_2.png">
+</div>
+
 
